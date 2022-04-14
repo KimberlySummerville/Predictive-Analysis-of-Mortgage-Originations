@@ -1,0 +1,354 @@
+---
+title: "DSC 630 KSummerville Milestone 3"
+author: "Kimberly Summerville"
+date: "1/11/2022"
+output: word_document
+---
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(lubridate)
+library(forecast) 
+library(caret)
+```
+
+Importing datasets
+```{r}
+State <- data.frame(read.csv("C:/Users/a565448/OneDrive - Fidelity Technology Group, LLC/Personal/School/DSC 630 Predictive Analysis/Final Project/RDC_Inventory_Core_Metrics_State_Monthly_History.csv"))
+
+Mtg <- data.frame(read_excel("C:\\Users\\a565448\\OneDrive - Fidelity Technology Group, LLC\\Personal\\School\\DSC 630 Predictive Analysis\\Final Project\\Monthly-National-Statistics-for-New-Residential-Mortgages-in-the-United-States.xlsx", sheet = "ALL_LOANS", col_names = FALSE, skip = 9))
+```
+
+
+Updating column names
+``` {r}
+names(Mtg) <- c('Month', 
+             'Number of Originations (1,000s)', 
+             'Average Loan Amount (1,000 $)', 
+             'Average Purchase Price / Appraised Value (1,000 $)',
+             'Average Contract Rate', 
+             'Percent Share Owner-Occupied Property', 
+             'Home Purchase Originations - First Time Homebuyer Loans %', 
+             'Home Purchase Originations - Repeat Homebuyer Loans %', 
+             'Home Purchase Originations - All Home Purchase Loans %', 
+             'Refinance Originations - Cashout Refinance %', 
+             'Refinance Originations - Rate and Term Refinance Loans %', 
+             'Refinance Originations - All Refinance Loans %',
+             'Average Term to Maturity (Yrs.)', 
+             'Mortgage Terms - Adjustable-Rate Mortgages %', 
+             'Mortgage Terms - 15-Year Fixed Rate Mortgages %', 
+             'Mortgage Terms - 20- and 30-Year Fixed Rate Mortgages %', 
+             'Back-End Debt-to-Income Ratio - Average DTI', 
+             'Back-End Debt-to-Income Ratio - % Less Than or Equal To 36', 
+             'Back-End Debt-to-Income Ratio - % More than 36 To 43', 
+             'Back-End Debt-to-Income Ratio - % Greater than 43', 
+             'All Borrowers Credit Score - Average Credit Score', 
+             'All Borrowers Credit Score - % Very Poor Credit', 
+             'All Borrowers Credit Score - % Poor Credit', 
+             'All Borrowers Credit Score - % Fair Credit', 
+             'All Borrowers Credit Score - % Good Credit', 
+             'All Borrowers Credit Score - % Excellent Credit',
+             'Loan-to-Value - Average Loan-to-Value',
+             'Loan-to-Value - Average Combined Loan-to-Value',
+             'Loan-to-Value - 70.0% or Less Percent Share by CLTV',
+             'Loan-to-Value - 70.1 - 80.0% Percent Share by CLTV',
+             'Loan-to-Value - 80.1 - 90.0% Percent Share by CLTV',
+             'Loan-to-Value - 90.1 - 95.0% Percent Share by CLTV',
+             'Loan-to-Value - 95.1 - 97.0% Percent Share by CLTV',
+             'Loan-to-Value - Greater Than 97.0% Percent Share by CLTV',
+             'Percent Market Share - Government',
+             'Percent Market Share - Enterprise',
+             'Percent Market Share - Other Conforming (Portfolio)',
+             'Percent Market Share - Jumbo Market',
+             'Percent Share of Loans by All Borrowers’ Race - All White alone',
+             'Percent Share of Loans by All Borrowers’ Race - All Black or African American alone',
+             'Percent Share of Loans by All Borrowers’ Race - All Asian alone',
+             'Percent Share of Loans by All Borrowers’ Race - All Native Hawaiian and Other Pacific Islander alone',
+             'Percent Share of Loans by All Borrowers’ Race - All American Indian and Alaska Native alone',
+             'Percent Share of Loans by All Borrowers’ Race - Multiple races',
+             'Percent Share of Loans by All Borrowers’ Ethnicity - All Hispanic or Latino',
+             'Percent Share of Loans by All Borrowers’ Ethnicity - At least one Hispanic or Latino',
+             'Percent Share of Loans by All Borrowers’ Ethnicity - All White alone, not Hispanic or Latino',
+             'Percent Share of Loans by All Borrowers’ Ethnicity - Multiple races or race other than White, not Hispanic or Latino',
+             'All Borrowers Ages - Average Age',
+             'All Borrowers Ages - % Less Than 25',
+             'All Borrowers Ages - % 25 to 34',
+             'All Borrowers Ages - % 35 to 44',
+             'All Borrowers Ages - % 45 to 54',
+             'All Borrowers Ages - % 55 to 64',
+             'All Borrowers Ages - % At Least 65',
+             'Percent Share of Loans by Number of Borrowers and Gender - Single Borrower - Male',
+             'Percent Share of Loans by Number of Borrowers and Gender - Single Borrower - Female',
+             'Percent Share of Loans by Number of Borrowers and Gender - Two Borrowers',
+             'Percent Share of Loans by Number of Borrowers and Gender - More than Two Borrowers'
+)
+```
+
+```{r}
+Mtg$`Percent Share of Loans by All Borrowers’ Ethnicity - Multiple races or race other than White, not Hispanic or Latino`
+```
+
+```{r}
+ggplot(Mtg, aes(x = Month)) + 
+  geom_line(aes(y = `Refinance Originations - All Refinance Loans %`*3, color = 'blue')) + 
+  geom_line(aes(y = `Average Loan Amount (1,000 $)`, color = 'red')) +
+  scale_y_continuous() +
+  labs(y = "Refinancing % (red) & Average Loan Amount (blue)")
+```
+
+```{r}
+Mtg_model <- {`Number of Originations (1,000s)` ~ `Average Contract Rate`}
+
+set.seed(1000)
+
+train_and_test <- c(rep(1, trunc((2/3)*nrow(Mtg))), rep(2, trunc((1/3)*nrow(Mtg))))
+
+Mtg$train <- sample(train_and_test)
+
+Mtg$train <- factor(Mtg$train, levels = c(1, 2), labels = c("TRAIN", "TEST"))
+
+Mtg.Train <- subset(Mtg, train == "TRAIN")
+Mtg.Test <- subset(Mtg, train == "TEST")
+
+head(Mtg.Train)
+head(Mtg.Test)
+```
+
+``` {r}
+train.model.fit <- lm(Mtg_model, data = Mtg.Train)
+
+Mtg.Train$Predict_Attend <- predict(train.model.fit)
+
+Mtg.Test$Predict_Attend <- predict(train.model.fit, newdata = Mtg.Test)
+
+cat("\n","Proportion of Test Set Variance Accounted for: ", round(cor(Mtg.Test$`Home Purchase Originations - First Time Homebuyer Loans %`, Mtg.Test$Predict_Attend)^2, digits=3), "\n", sep="")
+
+Mtg.Training_Test <- rbind(Mtg.Train, Mtg.Test)
+```
+
+
+``` {r}
+ggplot(Mtg.Training_Test, aes(x=`Number of Originations (1,000s)`, y=Predict_Attend)) + 
+        geom_line() + 
+        facet_wrap(~train) +
+        ggtitle("Regression Model Performance : Day of the Week and Attendance") +
+        theme(plot.title = element_text(lineheight=3, face="bold", color="black", size=10)) +
+        xlab("Actual Originations (Thousands)") +
+        ylab("Predicted Originations (Thousands)")
+
+```
+
+
+```{r}
+Mtg_model.fit <- lm(Mtg_model, data = Mtg)  # use all available data
+print(summary(Mtg_model.fit))
+```
+With the model fitted, we can see that as the average borrower age increases by 1 year, the percentage of Originations that are for First Time Homebuyers goes down by 1.987%, which is what we would expect.
+
+``` {r}
+Refi_model <- {`Refinance Originations - All Refinance Loans %` ~ `Average Contract Rate`}
+
+set.seed(1000)
+
+train_and_test <- c(rep(1, trunc((2/3)*nrow(Mtg))), rep(2, trunc((1/3)*nrow(Mtg))))
+
+Mtg$train <- sample(train_and_test)
+
+Mtg$train <- factor(Mtg$train, levels = c(1, 2), labels = c("TRAIN", "TEST"))
+
+Mtg.Train <- subset(Mtg, train == "TRAIN")
+Mtg.Test <- subset(Mtg, train == "TEST")
+
+train.model.fit <- lm(Mtg_model, data = Mtg.Train)
+
+Mtg.Train$Predict_Attend <- predict(train.model.fit)
+
+Mtg.Test$Predict_Attend <- predict(train.model.fit, newdata = Mtg.Test)
+
+cat("\n","Proportion of Test Set Variance Accounted for: ", round(cor(Mtg.Test$`Home Purchase Originations - First Time Homebuyer Loans %`, Mtg.Test$Predict_Attend)^2, digits=3), "\n", sep="")
+
+Mtg.Training_Test <- rbind(Mtg.Train, Mtg.Test)
+
+ggplot(Mtg.Training_Test, aes(x=`Refinance Originations - All Refinance Loans %`, y=Predict_Attend)) + 
+        geom_line() + 
+        facet_wrap(~train) +
+        ggtitle("Regression Model Performance : % of Originations being Refinance Loans") +
+        theme(plot.title = element_text(lineheight=3, face="bold", color="black", size=10)) +
+        xlab("Actual Originations (Thousands)") +
+        ylab("Predicted Originations (Thousands)")
+```
+
+```{r}
+Mtg_model.fit <- lm(Mtg_model, data = Mtg)  # use all available data
+print(summary(Mtg_model.fit))
+```
+Here we see that for each point that the Average Contract Rate (Interest Rate) goes up, the percentage of Originations being from Refinances goes down 2.477 points, which is expected.
+
+```{r}
+model <- train(`Number of Originations (1,000s)` ~ `Average Contract Rate`, data = Mtg, method = "lm")
+model
+```
+
+
+```{r}
+Orig <- Mtg$`Number of Originations (1,000s)`
+
+mtg <- ts(Orig, start = c(1998, 1), end = c(2021, 3), 
+                            deltat = 1/12)
+
+fit <- auto.arima(mtg)
+
+plot(forecast(fit, 25), xlab = "Month", ylab = "Number of Originations", main = "Originations Predictions", col.main ="darkgreen")
+```
+
+```{r}
+forecast(fit, 25)
+```
+```{r}
+Int_model <- {`Number of Originations (1,000s)` ~ `Average Contract Rate`}
+
+Int_model.fit <- lm(Int_model, data = Mtg)  # use all available data
+print(summary(Int_model.fit))
+```
+
+```{r}
+IntRefi_model <- {`Refinance Originations - All Refinance Loans %` ~ `Average Contract Rate`}
+
+IntRefi_model.fit <- lm(IntRefi_model, data = Mtg)  # use all available data
+print(summary(IntRefi_model.fit))
+```
+
+```{r}
+IntPurch_model <- {`Home Purchase Originations - All Home Purchase Loans %` ~ `Average Contract Rate`}
+
+IntPurch_model.fit <- lm(IntPurch_model, data = Mtg)  # use all available data
+print(summary(IntPurch_model.fit))
+
+
+```
+
+```{r}
+ggpairs(data=Mtg, columns=2:5, title="Interest")
+fit_ex <- lm(`Number of Originations (1,000s)` ~ `Average Contract Rate`, data = Mtg)
+ggplot(data=Mtg, aes(fit_ex$residuals)) +
+geom_histogram(binwidth = 1, color = "green", fill = "yellow") +
+theme(panel.background = element_rect(fill = "red"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Histogram for women height")
+ggplot(data = Mtg, aes(x = `Number of Originations (1,000s)`, y = `Average Contract Rate`)) +
+geom_point() +
+stat_smooth(method = "lm", col = "blue") +
+theme(panel.background = element_rect(fill = "grey"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Linear Model fitted to above data")
+predict(fit_ex, data.frame(weight = 70.2))
+```
+
+```{r}
+Greater <- Mtg %>% 
+  filter(`Average Contract Rate` >= 5.50)
+
+Less <- Mtg %>% 
+  filter(`Average Contract Rate` <= 5.50)
+
+head(Greater)
+head(Less)
+```
+
+
+```{r} 
+#Greater than 5.5% interest rate model
+ggpairs(data=Greater, columns=2:5, title="Interest")
+fit_ex <- lm(`Number of Originations (1,000s)` ~ `Average Contract Rate`, data = Greater)
+ggplot(data=Greater, aes(fit_ex$residuals)) +
+geom_histogram(binwidth = 1, color = "green", fill = "yellow") +
+theme(panel.background = element_rect(fill = "red"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Histogram for women height")
+ggplot(data = Greater, aes(x = `Number of Originations (1,000s)`, y = `Average Contract Rate`)) +
+geom_point() +
+stat_smooth(method = "lm", col = "blue") +
+theme(panel.background = element_rect(fill = "grey"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Interest Rate Greater than 5.5%")
+predict(fit_ex, data.frame(weight = 70.2))
+```
+
+```{r} 
+#Lesser than 5.5% interest rate model
+ggpairs(data=Less, columns=2:5, title="Interest")
+fit_ex <- lm(`Number of Originations (1,000s)` ~ `Average Contract Rate`, data = Less)
+ggplot(data=Less, aes(fit_ex$residuals)) +
+geom_histogram(binwidth = 1, color = "green", fill = "yellow") +
+theme(panel.background = element_rect(fill = "red"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Histogram for women height")
+ggplot(data = Less, aes(x = `Number of Originations (1,000s)`, y = `Average Contract Rate`)) +
+geom_point() +
+stat_smooth(method = "lm", col = "blue") +
+theme(panel.background = element_rect(fill = "grey"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Interest Rate Less than 5.5%")
+predict(fit_ex, data.frame(weight = 70.2))
+```
+
+
+
+```{r}
+Mtg2009 <- Mtg %>% 
+  dplyr::filter(Month >= as.POSIXct("2008-12-01"))
+
+Mtg1998 <- Mtg %>% 
+  dplyr::filter(Month <= as.POSIXct("2008-12-01"))
+```
+
+```{r}
+Orig <- Mtg2009$`Number of Originations (1,000s)`
+
+mtg <- ts(Orig, start = c(2009, 1), end = c(2021, 3), 
+                            deltat = 1/12)
+
+fit <- auto.arima(mtg)
+
+plot(forecast(fit, 25), xlab = "Month", ylab = "Number of Originations", main = "Originations Predictions", col.main ="darkgreen")
+
+forecast(fit, 25)
+```
+
+```{r}
+Orig <- Mtg1998$`Number of Originations (1,000s)`
+
+mtg <- ts(Orig, start = c(1998, 1), end = c(2009, 1), 
+                            deltat = 1/12)
+
+fit <- auto.arima(mtg)
+
+plot(forecast(fit, 25), xlab = "Month", ylab = "Number of Originations", main = "Originations Predictions", col.main ="darkgreen")
+
+forecast(fit, 25)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
